@@ -166,7 +166,7 @@ init_full_install() {
 # ==============================================================================
 init_install_theme_and_config() {
 
-    TOTAL_STEPS=2
+    TOTAL_STEPS=5
 
     init_display
 
