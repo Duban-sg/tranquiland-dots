@@ -1,3 +1,5 @@
+# Deprecated 
+
 #!/usr/bin/env bash
 
 # Enable monitor mode so background jobs get placed in their own process groups.
@@ -32,4 +34,4 @@ wait -n 2>/dev/null
 
 # Delay slightly to prevent 100% CPU usage looping if a service is completely down 
 # and crashing its monitor instantly.
-sleep 1
+sleep 50

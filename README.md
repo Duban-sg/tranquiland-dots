@@ -6,6 +6,8 @@
 
 Fork de [imperative-dots](https://github.com/ilyamiro/imperative-dots) — adaptado con configuraciones, temas y scripts propios para un setup reproducible y minimalista.
 
+> ⚠️ **Por el momento este proyecto está pensado y probado únicamente para PC de escritorio.** El soporte para laptops (gestión de batería, brillo, touchpad, etc.) no está garantizado.
+
 </div>
 
 ---
@@ -56,4 +58,5 @@ El instalador cubre los siguientes pasos de forma automática:
 | Rol | Usuario |
 |-----|---------|
 | Autor del proyecto original | [@ilyamirox](https://github.com/ilyamiro) |
+| Autor de los widgets (Quickshell) | [@ilyamirox](https://github.com/ilyamiro) |
 | Mantenedor de este fork | [@Duban-sg](https://github.com/Duban-sg) |

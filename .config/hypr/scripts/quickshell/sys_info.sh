@@ -1,3 +1,5 @@
+# Deprecated 
+
 #!/usr/bin/env bash
 
 ## NETWORK
@@ -38,7 +40,7 @@ get_wifi_icon() {
             elif [ "$signal" -ge 50 ]; then echo "󰤥"
             elif [ "$signal" -ge 25 ]; then echo "󰤢"
             else echo "󰤟"; fi
-        else echo "󰤯"; fi
+        else echo "󰤫"; fi
     else echo "󰤮"; fi
 }
 toggle_wifi() {
@@ -118,40 +120,6 @@ get_volume_icon() {
     else echo "󰝟"; fi
 }
 
-## BATTERY
-get_battery_percent() {
-    if [ -f /sys/class/power_supply/BAT*/capacity ]; then 
-        local bat=$(cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -n1)
-        echo "${bat:-100}"
-    else echo "100"; fi
-}
-get_battery_status() {
-    if [ -f /sys/class/power_supply/BAT*/status ]; then cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -n1
-    else echo "Full"; fi
-}
-get_battery_icon() {
-    local percent=$(get_battery_percent)
-    local status=$(get_battery_status)
-    if [ "$status" = "Charging" ] || [ "$status" = "Full" ]; then
-        if [ "$percent" -ge 90 ]; then echo "󰂅"
-        elif [ "$percent" -ge 80 ]; then echo "󰂋"
-        elif [ "$percent" -ge 60 ]; then echo "󰂊"
-        elif [ "$percent" -ge 40 ]; then echo "󰢞"
-        elif [ "$percent" -ge 20 ]; then echo "󰂆"
-        else echo "󰢜"; fi
-    else
-        if [ "$percent" -ge 90 ]; then echo "󰁹"
-        elif [ "$percent" -ge 80 ]; then echo "󰂂"
-        elif [ "$percent" -ge 70 ]; then echo "󰂁"
-        elif [ "$percent" -ge 60 ]; then echo "󰂀"
-        elif [ "$percent" -ge 50 ]; then echo "󰁿"
-        elif [ "$percent" -ge 40 ]; then echo "󰁾"
-        elif [ "$percent" -ge 30 ]; then echo "󰁽"
-        elif [ "$percent" -ge 20 ]; then echo "󰁼"
-        elif [ "$percent" -ge 10 ]; then echo "󰁻"
-        else echo "󰁺"; fi
-    fi
-}
 
 ## SYSTEM
 get_kb_layout() {

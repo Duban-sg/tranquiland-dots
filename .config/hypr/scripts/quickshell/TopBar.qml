@@ -5,9 +5,12 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.SystemTray
+import Quickshell.Hyprland
+import "./components"
 
 Variants {
     model: Quickshell.screens
+
     
     delegate: Component {
         PanelWindow {
@@ -41,10 +44,8 @@ Variants {
 
             // THICKER BAR, MINIMAL MARGINS (Scaled)
             height: barHeight
-            margins { top: s(2); bottom: 0; left: s(4); right: s(4) }
+            margins { top: s(2) ; bottom: 0; left: s(4); right: s(4) }
             
-            // exclusiveZone = height + top margin
-            exclusiveZone: barHeight + s(2)
             color: "transparent"
 
             // Dynamic Matugen Palette
@@ -61,8 +62,8 @@ Variants {
             // Prevents repeaters (Workspaces/Tray) from flickering on data updates
             property bool startupCascadeFinished: false
             Timer { interval: 1000; running: true; onTriggered: barWindow.startupCascadeFinished = true }
-            
-            // Data gating to prevent startup layout jumping
+                
+            // // Data gating to prevent startup layout jumping
             property bool sysPollerLoaded: false
             property bool fastPollerLoaded: false
             
@@ -93,13 +94,55 @@ Variants {
             property string volIcon: "󰕾"
             property bool isMuted: false
             
-            property string batPercent: "100%"
-            property string batIcon: "󰁹"
-            property string batStatus: "Unknown"
+            property string configIcon: ""
             
             property string kbLayout: "us"
             
-            ListModel { id: workspacesModel }
+            ListModel { 
+                id: workspacesModel
+            }
+
+            // Minimum number of workspace pills always shown
+            readonly property int minWorkspaces: 3
+
+            // Ensures the model always has at least minWorkspaces entries,
+            // filling gaps sequentially up to the highest active workspace id.
+            function syncWorkspaceModel() {
+                const hyprWs = Hyprland.workspaces.values.filter(a => a.id > 0)
+
+                // Find the highest id between Hyprland and our minimum
+                let maxId = barWindow.minWorkspaces
+                for (const ws of hyprWs) {
+                    if (ws.id > maxId) maxId = ws.id
+                }
+
+                // Build a set of ids currently in the model
+                let modelIds = {}
+                for (let i = 0; i < workspacesModel.count; i++) {
+                    modelIds[workspacesModel.get(i).wsId] = true
+                }
+
+                // Add missing ids sequentially from 1 to maxId
+                for (let id = 1; id <= maxId; id++) {
+                    if (!modelIds[id]) {
+                        workspacesModel.append({
+                            wsId: id,
+                            // isNew: only animate if startup is already done
+                            isNew: barWindow.startupCascadeFinished
+                        })
+                    }
+                }
+
+                // Remove ids that are above maxId and not in Hyprland
+                // (keeps the model clean if workspaces are closed, but never below minWorkspaces)
+                for (let i = workspacesModel.count - 1; i >= 0; i--) {
+                    const id = workspacesModel.get(i).wsId
+                    const existsInHypr = hyprWs.find(ws => ws.id === id)
+                    if (id > barWindow.minWorkspaces && !existsInHypr) {
+                        workspacesModel.remove(i)
+                    }
+                }
+            }
             
             property var musicData: { "status": "Stopped", "title": "", "artUrl": "", "timeStr": "" }
 
@@ -128,45 +171,6 @@ Variants {
                 id: wsDaemon
                 command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/workspaces.sh"]
                 running: true
-            }
-
-            // 2. The lightweight reader
-            Process {
-                id: wsReader
-                command: ["bash", "-c", "cat /tmp/qs_workspaces.json 2>/dev/null"]
-                stdout: StdioCollector {
-                    onStreamFinished: {
-                        let txt = this.text.trim();
-                        if (txt !== "") {
-                            try { 
-                                let newData = JSON.parse(txt);
-                                if (workspacesModel.count !== newData.length) {
-                                    workspacesModel.clear();
-                                    for (let i = 0; i < newData.length; i++) {
-                                        workspacesModel.append({ "wsId": newData[i].id.toString(), "wsState": newData[i].state });
-                                    }
-                                } else {
-                                    for (let i = 0; i < newData.length; i++) {
-                                        if (workspacesModel.get(i).wsState !== newData[i].state) {
-                                            workspacesModel.setProperty(i, "wsState", newData[i].state);
-                                        }
-                                        if (workspacesModel.get(i).wsId !== newData[i].id.toString()) {
-                                            workspacesModel.setProperty(i, "wsId", newData[i].id.toString());
-                                        }
-                                    }
-                                }
-                            } catch(e) {}
-                        }
-                    }
-                }
-            }
-
-            // 3. Ultra-fast 50ms loop.
-            Timer { 
-                interval: 50 
-                running: true 
-                repeat: true 
-                onTriggered: wsReader.running = true 
             }
 
             // Music -------------------------------------
@@ -223,7 +227,7 @@ Variants {
                                 // Targeted Updates
                                 if (barWindow.wifiStatus !== data.wifi.status) barWindow.wifiStatus = data.wifi.status;
                                 if (barWindow.wifiIcon !== data.wifi.icon) barWindow.wifiIcon = data.wifi.icon;
-                                if (barWindow.wifiSsid !== data.wifi.ssid) barWindow.wifiSsid = data.wifi.ssid;
+                                //if (barWindow.wifiSsid !== data.wifi.ssid) barWindow.wifiSsid = data.wifi.ssid;
 
                                 if (barWindow.btStatus !== data.bt.status) barWindow.btStatus = data.bt.status;
                                 if (barWindow.btIcon !== data.bt.icon) barWindow.btIcon = data.bt.icon;
@@ -236,10 +240,10 @@ Variants {
                                 let newMuted = (data.audio.is_muted === "true");
                                 if (barWindow.isMuted !== newMuted) barWindow.isMuted = newMuted;
 
-                                let newBat = data.battery.percent.toString() + "%";
-                                if (barWindow.batPercent !== newBat) barWindow.batPercent = newBat;
-                                if (barWindow.batIcon !== data.battery.icon) barWindow.batIcon = data.battery.icon;
-                                if (barWindow.batStatus !== data.battery.status) barWindow.batStatus = data.battery.status;
+                                // let newBat = data.battery.percent.toString() + "%";
+                                // if (barWindow.batPercent !== newBat) barWindow.batPercent = newBat;
+                                // if (barWindow.batIcon !== data.battery.icon) barWindow.batIcon = data.battery.icon;
+                                // if (barWindow.batStatus !== data.battery.status) barWindow.batStatus = data.battery.status;
 
                                 if (barWindow.kbLayout !== data.keyboard.layout) barWindow.kbLayout = data.keyboard.layout;
 
@@ -248,18 +252,26 @@ Variants {
                             } catch(e) {}
                         }
                         // When the system/music waiter finishes, instantly refresh the music state
-                        musicForceRefresh.running = true; 
+                        musicForceRefresh.running = true;
                         sysWaiter.running = true;
                     }
                 }
             }
-            
-            Process {
-                id: sysWaiter
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/sys_waiter.sh"]
-                // Strictly use onExited. Quickshell will no longer hook into stdout, preventing pipe deadlocks.
-                onExited: sysPoller.running = true 
-            }
+            // Contain performaces error
+            // Process {
+            //     id: sysWaiter
+            //     command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/sys_waiter.sh"]
+            //     // Strictly use onExited. Quickshell will no longer hook into stdout, preventing pipe deadlocks.
+            //     onExited: sysPoller.running = true 
+            // }
+
+            // Timer {
+            //     interval: 1000
+            //     running: true
+            //     repeat: true
+            //     triggeredOnStart: true
+            //     onTriggered: sysPoller.running = true
+            // }
 
             // Weather remains a slow poll since it fetches from web
             Process {
@@ -287,7 +299,7 @@ Variants {
                 interval: 1000; running: true; repeat: true; triggeredOnStart: true
                 onTriggered: {
                     let d = new Date();
-                    barWindow.timeStr = Qt.formatDateTime(d, "hh:mm AP");
+                    barWindow.timeStr = Qt.formatDateTime(d, "hh:mm:ss AP");
                     barWindow.fullDateStr = Qt.formatDateTime(d, "dd MMM yyyy");
                     if (barWindow.typeInIndex >= barWindow.fullDateStr.length) {
                         barWindow.typeInIndex = barWindow.fullDateStr.length;
@@ -304,35 +316,42 @@ Variants {
                 onTriggered: barWindow.typeInIndex += 1
             }
 
+            // Get Pills
+
+            // Seed the model with the minimum workspaces on startup
+            Component.onCompleted: barWindow.syncWorkspaceModel()
+
+            Connections {
+                target: Hyprland.workspaces
+                function onValuesChanged() { barWindow.syncWorkspaceModel() }
+            }
+
+
             // ==========================================
             // UI LAYOUT
             // ==========================================
             Item {
                 anchors.fill: parent
 
-                
-
                 // ---------------- CENTER (MUST BE DECLARED FIRST OR Z-INDEXED FOR PROPER ANCHORING BORDERS) ----------------
                 // Workspaces
                 Rectangle {
                     id: centerBox
                     anchors.centerIn: parent
-                    color: Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
-                    radius: barWindow.s(5) ; border.width: 1; border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, 0.05)
-                    topLeftRadius: 0
-                    topRightRadius: 0 
+                    color: "transparent"
                     height: barWindow.barHeight
                     
                     width: centerLayout.implicitWidth + barWindow.s(25)
-                    Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
+                    //Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
                     
                     // Staggered Center Transition
                     property bool showLayout: false
+                    property bool workspacesModel: false
                     opacity: showLayout ? 1 : 0
-                    transform: Translate {
-                        y: centerBox.showLayout ? 0 : barWindow.s(-30)
-                        Behavior on y { NumberAnimation { duration: 800; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
-                    }
+                    // transform: Translate {
+                    //     y: centerBox.showLayout ? 0 : barWindow.s(-30)
+                    //     Behavior on y { NumberAnimation { duration: 800; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                    // }
 
                     Timer {
                         running: barWindow.isStartupReady
@@ -358,44 +377,46 @@ Variants {
                             model: workspacesModel
                             delegate: Rectangle {
                                 id: wsPill
+                                readonly property bool isFocused: Hyprland.focusedWorkspace.id === model.wsId
+                                // A workspace is "occupied" only if Hyprland knows about it
+                                readonly property bool isOccupied: Hyprland.workspaces.values.find(ws => ws.id === model.wsId) !== undefined
                                 property bool isHovered: wsPillMouse.containsMouse
                                 
-                                // Mapped dynamically from the ListModel
-                                property string stateLabel: model.wsState
+                                property string stateLabel: isFocused ? "active" : (isOccupied ? "occupied" : "empty")
                                 property string wsName: model.wsId
                                 
                                 property real targetWidth: barWindow.s(25)
                                 width: targetWidth
-                                Behavior on targetWidth { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
                                 
-                                height: barWindow.s(18); 
+                                height: barWindow.s(18)
                                 radius: barWindow.s(2)
                                 topLeftRadius: 0
-                                topRightRadius: 0 
+                                topRightRadius: 0  
                                 
                                 color: stateLabel === "active" 
-                                        ? mocha.mauve 
-                                        : (isHovered 
-                                            ? Qt.rgba(mocha.overlay0.r, mocha.overlay0.g, mocha.overlay0.b, 0.9) 
-                                            : (stateLabel === "occupied" 
-                                                ? Qt.rgba(mocha.surface2.r, mocha.surface2.g, mocha.surface2.b, 0.9) 
-                                                : "transparent"))
+                                        ? Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.6) 
+                                        : (stateLabel === "occupied" 
+                                            ? Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+                                            : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.50))
+
                                 scale: isHovered && stateLabel !== "active" ? 1.08 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
                                 
-                                property bool initAnimTrigger: false
+                                // isNew=false → startup cascade (born invisible, timer triggers anim)
+                                // isNew=true  → user opened workspace (born visible immediately)
+                                property bool initAnimTrigger: model.isNew
                                 opacity: initAnimTrigger ? 1 : 0
                                 transform: Translate {
-                                    y: wsPill.initAnimTrigger ? 0 : barWindow.s(15)
+                                    y: wsPill.initAnimTrigger ? 0 : barWindow.s(-15)
                                     Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } }
                                 }
                                 Component.onCompleted: {
-                                    if (!barWindow.startupCascadeFinished) {
-                                        animTimer.interval = index * 60;
-                                        animTimer.start();
-                                    } else {
-                                        initAnimTrigger = true;
+                                    if (!model.isNew) {
+                                        // Startup: staggered cascade by index
+                                        animTimer.interval = index * 60
+                                        animTimer.start()
                                     }
+                                    // isNew=true already has initAnimTrigger=true, no animation needed
                                 }
                                 Timer {
                                     id: animTimer
@@ -408,17 +429,13 @@ Variants {
                                 Behavior on color { ColorAnimation { duration: 250 } }
                                 Text {
                                     anchors.centerIn: parent
-                                    text: wsName
+                                    text: wsPill.stateLabel === "active" ? "󱓇" : (wsPill.stateLabel === "occupied" ? "󰯈" : "󰝦")
                                     font.family: "JetBrains Mono"
                                     font.pixelSize: barWindow.s(10)
                                     font.weight: stateLabel === "active" ? Font.Black : (stateLabel === "occupied" ? Font.Bold : Font.Medium)
-                                    
-                                    color: stateLabel === "active" 
-                                            ? mocha.crust 
-                                            : (isHovered 
-                                                ? mocha.crust 
-                                                : (stateLabel === "occupied" ? mocha.text : mocha.overlay0))
-                                    
+                                    opacity: stateLabel === "empty" ? 0.4 : 1.0
+                                    Behavior on opacity { NumberAnimation { duration: 250 } }
+                                    color: mocha.text
                                     Behavior on color { ColorAnimation { duration: 250 } }
                                 }
                                 MouseArea {
@@ -987,7 +1004,7 @@ Variants {
                                 topLeftRadius: 0
                                 topRightRadius: 0
                                 clip: true
-                                property real targetWidth: audioPill.width + btPill.width + wifiPill.width + barWindow.s(24)
+                                property real targetWidth: audioPill.width + btPill.width + networkPill.width + barWindow.s(24)
                                 width: targetWidth
                                 opacity: 1
                                 
@@ -998,125 +1015,22 @@ Variants {
                                     spacing: barWindow.s(2);
 
                                     // WiFi 
-                                    Rectangle {
-                                        id: wifiPill
-                                        property bool isHovered: wifiMouse.containsMouse
-                                        radius: barWindow.s(4); topLeftRadius: 0; topRightRadius: 0; bottomRightRadius: 0; 
-                                        height: parent.height; 
-                                        color: isHovered ? Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.4) : Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75); 
-                                        clip: true
-                                        
-
-                                        property real targetWidth: wifiLayoutRow.width + barWindow.s(24)
-                                        width: targetWidth
-                                        Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
-                                        
-                                        scale: isHovered ? 1.05 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
-                                        Behavior on color { ColorAnimation { duration: 200 } }
-
-                                        property bool initAnimTrigger: false
-                                        Timer { running: rightLayout.showLayout && !wifiPill.initAnimTrigger; interval: 50; onTriggered: wifiPill.initAnimTrigger = true }
-                                        opacity: initAnimTrigger ? 1 : 0
-                                        transform: Translate { y: wifiPill.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
-                                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-
-                                        Row { 
-                                            id: wifiLayoutRow; anchors.centerIn: parent; spacing: barWindow.s(8)
-                                            Text { anchors.verticalCenter: parent.verticalCenter; text: barWindow.wifiIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(12); color: mocha.subtext0 }
-                                            Text { 
-                                                id: wifiText
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                //text: barWindow.sysPollerLoaded ? (barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off") : ""
-                                                text: barWindow.sysPollerLoaded ? (barWindow.isWifiOn ? "On" : "Off") : ""
-                                                visible: text !== ""
-                                                font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(8); font.weight: Font.Black; 
-                                                color:  mocha.text; 
-                                                width: Math.min(implicitWidth, barWindow.s(100)); elide: Text.ElideRight 
-                                            }
-                                        }
-                                        MouseArea { id: wifiMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network wifi"]) }
+                                    NetworkPill{
+                                        id: networkPill
+                                        height: sysLayout.pillHeight
                                     }
 
                                     // Bluetooth 
-                                    Rectangle {
+                                    BluetoothPill{
                                         id: btPill
-                                        property bool isHovered: btMouse.containsMouse
-                                        //radius: barWindow.s(10); 
                                         height: sysLayout.pillHeight
-                                        clip: true
-                                        color: isHovered ? Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.6) : Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75); 
-                                        
-
-                                        property real targetWidth: btLayoutRow.width + barWindow.s(24)
-                                        width: targetWidth
-                                        Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
-
-                                        scale: isHovered ? 1.05 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
-                                        Behavior on color { ColorAnimation { duration: 200 } }
-
-                                        property bool initAnimTrigger: false
-                                        Timer { running: rightLayout.showLayout && !btPill.initAnimTrigger; interval: 100; onTriggered: btPill.initAnimTrigger = true }
-                                        opacity: initAnimTrigger ? 1 : 0
-                                        transform: Translate { y: btPill.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
-                                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-
-                                        Row { 
-                                            id: btLayoutRow; anchors.centerIn: parent; spacing: barWindow.s(8)
-                                            Text { anchors.verticalCenter: parent.verticalCenter; text: barWindow.btIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(12); color: mocha.subtext0 }
-                                            Text { 
-                                                id: btText
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text: barWindow.sysPollerLoaded ? barWindow.btDevice : ""
-                                                visible: text !== ""; 
-                                                font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(8); font.weight: Font.Black; 
-                                                color: mocha.text; 
-                                                width: Math.min(implicitWidth, barWindow.s(100)); elide: Text.ElideRight 
-                                            }
-                                        }
-                                        MouseArea { id: btMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network bt"]) }
                                     }
 
                                     // Volume
-                                    Rectangle {
+                                    VolumePill{
                                         id: audioPill
-                                        property bool isHovered: volMouse.containsMouse
-                                        color: isHovered ? Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.6) : Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75); 
-                                        radius: barWindow.s(4); topLeftRadius:0; bottomLeftRadius: 0; topRightRadius: 0;
-                                        height: sysLayout.pillHeight;
-                                        clip: true
-                                        
-                                        property real targetWidth: volLayoutRow.width + barWindow.s(24)
-                                        width: targetWidth
-                                        Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
-                                        
-                                        scale: isHovered ? 1.05 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
-                                        Behavior on color { ColorAnimation { duration: 200 } }
-
-                                        property bool initAnimTrigger: false
-                                        Timer { running: rightLayout.showLayout && !audioPill.initAnimTrigger; interval: 150; onTriggered: audioPill.initAnimTrigger = true }
-                                        opacity: initAnimTrigger ? 1 : 0
-                                        transform: Translate { y: audioPill.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
-                                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-
-                                        Row { 
-                                            id: volLayoutRow; anchors.centerIn: parent; spacing: barWindow.s(8)
-                                            Text { 
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text: barWindow.volIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(12); 
-                                                color:  mocha.subtext0 
-                                            }
-                                            Text { 
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text: barWindow.volPercent; 
-                                                font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(8); font.weight: Font.Black; 
-                                                color:  mocha.text; 
-                                            }
-                                        }
-                                        MouseArea { id: volMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle volume"]) }
-                                    }    
+                                        height: sysLayout.pillHeight    
+                                    }
                                 }
                             }
                         }
@@ -1148,13 +1062,7 @@ Variants {
                             id: batLayoutRow; anchors.centerIn: parent; spacing: barWindow.s(8)
                             Text { 
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: barWindow.batIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(12); 
-                                color: (barWindow.isCharging || barWindow.batCap <= 20) ? mocha.text : barWindow.batDynamicColor
-                                Behavior on color { ColorAnimation { duration: 300 } }
-                            }
-                            Text { 
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: barWindow.batPercent; font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(8); font.weight: Font.Black; 
+                                text: configIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(12); 
                                 color: (barWindow.isCharging || barWindow.batCap <= 20) ? mocha.text : barWindow.batDynamicColor
                                 Behavior on color { ColorAnimation { duration: 300 } }
                             }

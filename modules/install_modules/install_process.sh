@@ -166,7 +166,7 @@ init_full_install() {
 # ==============================================================================
 init_install_theme_and_config() {
 
-    TOTAL_STEPS=5
+    TOTAL_STEPS=6
 
     init_display
 
@@ -187,7 +187,11 @@ init_install_theme_and_config() {
     show_progress 4 $TOTAL_STEPS
     config_fonts
 
-    # --- 5. Setup SDDM Theme and Config ---
+    # --- 5. Adaptability Phase ---
+    show_progress 8 $TOTAL_STEPS
+    config_Adaptability
+
+    # --- 6. Setup SDDM Theme and Config ---
     show_progress 5 $TOTAL_STEPS
     config_theme
 

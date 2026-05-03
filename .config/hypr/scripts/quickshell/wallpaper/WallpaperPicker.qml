@@ -98,7 +98,7 @@ Item {
                     (
                         cp "$DEST_FILE" /tmp/lock_bg.png
                         pkill mpvpaper || true
-                        swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 &
+                        awww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 &
                         matugen image "$FINAL_THUMB" --source-color-index 0 && bash "$RELOAD_SCRIPT"
                         wait
                     ) >/dev/null 2>&1 & disown
@@ -133,7 +133,7 @@ Item {
                             cp "$DEST_FILE" /tmp/lock_bg.png
                             
                             pkill mpvpaper || true
-                            swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 &
+                            awww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 &
                             matugen image "$FINAL_THUMB" --source-color-index 0 && bash "$RELOAD_SCRIPT"
                             wait
                         fi
@@ -159,7 +159,7 @@ Item {
             lockBgCmd = `cp "$THUMB_FILE" /tmp/lock_bg.png`
         } else {
             const randomTransition = window.transitions[Math.floor(Math.random() * window.transitions.length)]
-            wallpaperCmd = `swww img "$WALL_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1`
+            wallpaperCmd = `awww img "$WALL_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1`
             lockBgCmd = `cp "$WALL_FILE" /tmp/lock_bg.png`
         }
 
@@ -436,7 +436,7 @@ Item {
     readonly property string homeDir: "file://" + Quickshell.env("HOME")
     readonly property string thumbDir: homeDir + "/.cache/wallpaper_picker/thumbs"
     readonly property string searchDir: homeDir + "/.cache/wallpaper_picker/search_thumbs"
-    readonly property string srcDir: Quickshell.env("HOME") + "/Pictures/Wallpapers"
+    readonly property string srcDir: "/home/duban-sg/Pictures/Wallpapers"
 
     readonly property var transitions: ["grow", "outer", "any", "wipe", "wave", "pixel", "center"]
 
